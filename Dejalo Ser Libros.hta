@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Dejalo Ser - Gestión de Libros</title>
+
+    <hta:application
+        id="oDS_Final"
+        applicationname="DejaloSerABM"
+        border="normal"
+        caption="yes"
+        showintaskbar="yes"
+        singleinstance="yes"
+        sysmenu="yes"
+        maximizebutton="yes"
+        minimizebutton="yes"
+        windowstate="maximize"
+        scroll="no"
+        selection="yes"
+    />
+
+    <style>
+        * { box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; }
+        body {
+            background-color: #fdf5e6;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 10px;
+            color: #4a4a4a;
+            overflow: hidden;
+            font-size: 14px;
+        }
+        .wrapper {
+            width: 100%;
+            height: 100%;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 12px;
+            border-radius: 12px;
+            border: 2px solid #b2c2bf;
+            box-shadow: 4px 4px 0px #b2c2bf;
+            overflow: hidden;
+        }
+        .main-title {
+            text-align: center;
+            color: #2d5a27;
+            font-family: "Courier New", Courier, monospace;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-bottom: 2px dashed #d9adad;
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+            font-size: 24px;
+            line-height: 1.2;
+        }
+        input, td, th, button, label { text-transform: uppercase; }
+        .search-area {
+            text-align: center;
+            margin-bottom: 10px;
+            white-space: nowrap;
+        }
+        #txtBusqueda {
+            font-family: "Courier New", Courier, monospace;
+            font-weight: bold;
+            padding: 8px;
+            width: 50%;
+            border: 2px solid #d9adad;
+            border-radius: 6px;
+            font-size: 16px;
+            outline: none;
+            vertical-align: middle;
+        }
+        .btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+            vertical-align: middle;
+            margin-left: 4px;
+        }
+        .btn-search { background-color: #77a8a8; color: white; }
+        .btn-clear { background-color: #4a4a4a; color: #ffffff; }
+        .btn-new { background-color: #d9adad; color: white; }
+        .btn-edit { background-color: #b2c2bf; color: white; }
+        .btn-delete { background-color: #f2d1d1; color: #a35d5d; }
+        
+        .grid-wrapper {
+            overflow: auto;
+            border: 1px solid #eee;
+            background: #fff;
+            width: 100%;
+        }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        th {
+            background-color: #77a8a8;
+            color: white;
+            padding: 9px 6px;
+            font-family: "Courier New", Courier, monospace;
+            position: sticky;
+            top: 0;
+            text-align: left;
+            z-index: 5;
+            font-size: 13px;
+        }
+        .inverted-th {
+            background-color: white !important;
+            color: #77a8a8 !important;
+            border: 1px solid #77a8a8;
+        }
+        td {
+            padding: 8px 6px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+            word-wrap: break-word;
+        }
+        tr:nth-child(even) { background-color: #faf8f5; }
+
+        #modalOverlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 1000;
+        }
+        #miniForm {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 600px;
+            background: #fff;
+            border: 5px solid #77a8a8;
+            border-radius: 15px;
+            transform: translate(-50%, -50%);
+            overflow: hidden;
+        }
+        #miniFormHead {
+            padding: 15px;
+            border-bottom: 1px solid #d8ecec;
+            background-color: #f9fdfd;
+        }
+        #miniFormBody {
+            padding: 20px;
+        }
+        .form-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0px 12px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 11px;
+            font-weight: bold;
+            color: #888;
+            margin-bottom: 4px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d9adad;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .modal-actions {
+            text-align: right;
+            padding: 15px;
+            border-top: 1px solid #d8ecec;
+            background: #fcfcfc;
+        }
+        .sin-resultados {
+            text-align: center;
+            color: #888;
+            padding: 20px;
+            text-transform: none;
+        }
+    </style>
+
+    <script language="javascript">
+        var dbPath = "D:\\Dejalo Ser ABM\\Proyecto.mdb";
+        var connStr = "Provider=Microsoft.Jet.OLEDB.4.0;Data Source=" + dbPath + ";";
+        var editando = false;
+        var isbnOriginal = "";
+        var guardando = false;
+
+        function getConn() {
+            var conn = new ActiveXObject("ADODB.Connection");
+            conn.Open(connStr);
+            return conn;
+        }
+
+        function esc(str) {
+            if (str === null || str === undefined) return "";
+            return String(str).replace(/'/g, "''").toUpperCase().replace(/^\s+|\s+$/g, "");
+        }
+
+        function ajustarLayout() {
+            try {
+                var bodyH = document.documentElement.clientHeight || document.body.clientHeight;
+                var grid = document.getElementById("gridWrapper");
+                var searchArea = document.getElementById("searchArea");
+                var title = document.getElementById("mainTitle");
+                if (grid) {
+                    var h = bodyH - title.offsetHeight - searchArea.offsetHeight - 80;
+                    grid.style.height = (h > 200 ? h : 200) + "px";
+                }
+            } catch (e) {}
+        }
+
+        function inicializar() {
+            window.resizeTo(screen.availWidth, screen.availHeight);
+            window.moveTo(0, 0);
+            limpiarBusqueda();
+            ajustarLayout();
+            window.onresize = ajustarLayout;
+        }
+
+        function limpiarBusqueda() {
+            document.getElementById("txtBusqueda").value = "";
+            document.getElementById("tablaResultados").tBodies[0].innerHTML = "<tr><td colspan='7' class='sin-resultados'>Escriba para buscar por ISBN, Título o Autor...</td></tr>";
+            setCabecerasInvertidas();
+            document.getElementById("txtBusqueda").focus();
+        }
+
+        function setCabecerasNormal() {
+            document.body.style.backgroundColor = "#fdf5e6";
+            var ths = document.getElementsByTagName("th");
+            for (var i = 0; i < ths.length; i++) ths[i].className = "";
+        }
+
+        function setCabecerasInvertidas() {
+            document.body.style.backgroundColor = "#FFFFFF";
+            var ths = document.getElementsByTagName("th");
+            for (var i = 0; i < ths.length; i++) ths[i].className = "inverted-th";
+        }
+
+        function consultar() {
+            var criterio = esc(document.getElementById("txtBusqueda").value);
+            var tbody = document.getElementById("tablaResultados").tBodies[0];
+            tbody.innerHTML = "";
+
+            if (criterio === "") {
+                setCabecerasInvertidas();
+                tbody.innerHTML = "<tr><td colspan='7' class='sin-resultados'>Escriba un criterio de búsqueda</td></tr>";
+                return;
+            } 
+            
+            setCabecerasNormal();
+            var conn = null, rs = null, hubo = false;
+            try {
+                conn = getConn();
+                rs = new ActiveXObject("ADODB.Recordset");
+                var sql = "SELECT * FROM Libros WHERE ISBN LIKE '%" + criterio + "%' OR titulo LIKE '%" + criterio + "%' OR autor LIKE '%" + criterio + "%' ORDER BY titulo ASC";
+                rs.Open(sql, conn, 3, 1);
+
+                while (!rs.EOF) {
+                    hubo = true;
+                    var row = tbody.insertRow(-1);
+                    var d = {
+                        isbn: String(rs.Fields("ISBN").Value || ""),
+                        cod: String(rs.Fields("codigo").Value || ""),
+                        tit: String(rs.Fields("titulo").Value || ""),
+                        aut: String(rs.Fields("autor").Value || ""),
+                        edi: String(rs.Fields("editorial").Value || ""),
+                        lug: String(rs.Fields("lugar").Value || "")
+                    };
+                    row.insertCell(0).innerText = d.isbn;
+                    row.insertCell(1).innerText = d.cod;
+                    row.insertCell(2).innerText = d.tit;
+                    row.insertCell(3).innerText = d.aut;
+                    row.insertCell(4).innerText = d.edi;
+                    row.insertCell(5).innerText = d.lug;
+                    var actions = row.insertCell(6);
+                    actions.innerHTML = "<button class='btn btn-edit'>EDITAR</button><button class='btn btn-delete'>BORRAR</button>";
+
+                    (function(data, cell) {
+                        cell.children[0].onclick = function() { cargarParaEditar(data.isbn, data.cod, data.tit, data.aut, data.edi, data.lug); };
+                        cell.children[1].onclick = function() { eliminar(data.isbn); };
+                    })(d, actions);
+                    rs.MoveNext();
+                }
+
+                if (!hubo) {
+                    tbody.innerHTML = "<tr><td colspan='7' class='sin-resultados'>No se encontraron coincidencias</td></tr>";
+                }
+            } catch (e) {
+                alert("Error en consulta: " + e.message);
+            } finally {
+                try { if (rs) rs.Close(); } catch(e1){}
+                try { if (conn) conn.Close(); } catch(e2){}
+            }
+        }
+
+        function verificarExistenciaISBN() {
+            if (editando) return; 
+            var isbn = esc(document.getElementById("f_isbn").value);
+            if (isbn === "") return;
+
+            var conn = null;
+            try {
+                conn = getConn();
+                var rs = new ActiveXObject("ADODB.Recordset");
+                rs.Open("SELECT ISBN FROM Libros WHERE ISBN='" + isbn + "'", conn, 3, 1);
+                if (!rs.EOF) {
+                    alert("EL LIBRO YA EXISTE");
+                    document.getElementById("f_isbn").value = "";
+                    document.getElementById("f_isbn").focus();
+                }
+                rs.Close();
+            } catch (e) {} finally {
+                if (conn) conn.Close();
+            }
+        }
+
+        function guardar() {
+            if (guardando) return;
+            
+            var f = {
+                isbn: esc(document.getElementById("f_isbn").value),
+                cod: esc(document.getElementById("f_codigo").value),
+                tit: esc(document.getElementById("f_titulo").value),
+                aut: esc(document.getElementById("f_autor").value),
+                edi: esc(document.getElementById("f_editorial").value),
+                lug: esc(document.getElementById("f_lugar").value)
+            };
+
+            if (!f.isbn || !f.tit) {
+                alert("ISBN y TÍTULO son campos obligatorios.");
+                return;
+            }
+
+            guardando = true;
+            document.body.style.cursor = "wait";
+            var conn = null;
+            
+            try {
+                conn = getConn();
+                var sql = "";
+                if (editando) {
+                    sql = "UPDATE Libros SET codigo='" + f.cod + "', titulo='" + f.tit + "', autor='" + f.aut + "', editorial='" + f.edi + "', lugar='" + f.lug + "' WHERE ISBN='" + esc(isbnOriginal) + "'";
+                } else {
+                    sql = "INSERT INTO Libros (ISBN, codigo, titulo, autor, editorial, lugar) VALUES ('" + f.isbn + "','" + f.cod + "','" + f.tit + "','" + f.aut + "','" + f.edi + "','" + f.lug + "')";
+                }
+                
+                conn.Execute(sql);
+                conn.Close(); // Cerramos la conexión inmediatamente para forzar el vaciado del buffer (flush)
+                conn = null;
+
+                cerrarModal();
+
+                // AGREGAMOS UN PEQUEÑO RETRASO antes de consultar para que Access termine de escribir el archivo
+                setTimeout(function() {
+                    consultar();
+                    document.body.style.cursor = "default";
+                    alert("Guardado correctamente.");
+                    guardando = false;
+                }, 250);
+
+            } catch (e) {
+                alert("Error al guardar: " + e.message);
+                document.body.style.cursor = "default";
+                guardando = false;
+                if (conn) conn.Close();
+            }
+        }
+
+        function eliminar(isbn) {
+            if (!confirm("¿SEGURO QUE DESEA ELIMINAR EL LIBRO ISBN " + isbn + "?")) return;
+            var conn = null;
+            try {
+                conn = getConn();
+                conn.Execute("DELETE FROM Libros WHERE ISBN='" + esc(isbn) + "'");
+                conn.Close();
+                setTimeout(consultar, 200);
+            } catch (e) {
+                alert("Error al eliminar: " + e.message);
+                if (conn) conn.Close();
+            }
+        }
+
+        function abrirModal(esEdit) {
+            editando = esEdit;
+            document.getElementById("modalTitulo").innerText = esEdit ? "EDITAR LIBRO" : "NUEVO LIBRO";
+            document.getElementById("f_isbn").readOnly = esEdit;
+            
+            if (!esEdit) {
+                isbnOriginal = "";
+                document.getElementById("f_isbn").value = "";
+                document.getElementById("f_codigo").value = "";
+                document.getElementById("f_titulo").value = "";
+                document.getElementById("f_autor").value = "";
+                document.getElementById("f_editorial").value = "";
+                document.getElementById("f_lugar").value = "";
+            }
+            
+            document.getElementById("modalOverlay").style.display = "block";
+            setTimeout(function(){
+                document.getElementById(esEdit ? "f_codigo" : "f_isbn").focus();
+            }, 100);
+        }
+
+        function cargarParaEditar(isbn, cod, tit, aut, edi, lug) {
+            isbnOriginal = isbn;
+            document.getElementById("f_isbn").value = isbn;
+            document.getElementById("f_codigo").value = cod;
+            document.getElementById("f_titulo").value = tit;
+            document.getElementById("f_autor").value = aut;
+            document.getElementById("f_editorial").value = edi;
+            document.getElementById("f_lugar").value = lug;
+            abrirModal(true);
+        }
+
+        function cerrarModal() {
+            document.getElementById("modalOverlay").style.display = "none";
+            editando = false;
+        }
+
+        function saltar(e, idSiguiente) {
+            if ((e || window.event).keyCode === 13) {
+                document.getElementById(idSiguiente).focus();
+                return false;
+            }
+            return true;
+        }
+
+        function manejarEnterBusqueda(e) {
+            if ((e || window.event).keyCode === 13) {
+                consultar();
+                return false;
+            }
+            return true;
+        }
+    </script>
+</head>
+
+<body onload="inicializar()">
+    <div class="wrapper" id="wrapper">
+        <div class="main-title" id="mainTitle">Dejalo Ser Libros</div>
+
+        <div class="search-area" id="searchArea">
+            <input type="text" id="txtBusqueda" placeholder="BUSCAR POR ISBN, TÍTULO O AUTOR..." onkeydown="return manejarEnterBusqueda(event)">
+            <button class="btn btn-search" onclick="consultar()">Consultar</button>
+            <button class="btn btn-clear" onclick="limpiarBusqueda()">Limpiar</button>
+            <button class="btn btn-new" onclick="abrirModal(false)">Nuevo Libro</button>
+        </div>
+
+        <div class="grid-wrapper" id="gridWrapper">
+            <table id="tablaResultados">
+                <thead>
+                    <tr>
+                        <th style="width:15%;">ISBN</th>
+                        <th style="width:10%;">CÓDIGO</th>
+                        <th style="width:28%;">TÍTULO</th>
+                        <th style="width:15%;">AUTOR</th>
+                        <th style="width:12%;">EDITORIAL</th>
+                        <th style="width:10%;">LUGAR</th>
+                        <th style="width:10%;">ACCIONES</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="7" class="sin-resultados">Sin resultados</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="modalOverlay">
+        <div id="miniForm">
+            <div id="miniFormHead">
+                <h2 id="modalTitulo" style="font-family:'Courier New'; color:#77a8a8; text-align:center; margin:0;">LIBRO</h2>
+            </div>
+
+            <div id="miniFormBody">
+                <table class="form-table">
+                    <tr>
+                        <td>
+                            <div class="form-group">
+                                <label>ISBN (CLAVE PRINCIPAL) *</label>
+                                <input type="text" id="f_isbn" onblur="verificarExistenciaISBN()" onkeydown="return saltar(event, 'f_codigo')">
+                            </div>
+                        </td>
+                        <td>
+                            <div class="form-group">
+                                <label>CÓDIGO INTERNO</label>
+                                <input type="text" id="f_codigo" onkeydown="return saltar(event, 'f_titulo')">
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="2">
+                            <div class="form-group">
+                                <label>TÍTULO DEL LIBRO *</label>
+                                <input type="text" id="f_titulo" onkeydown="return saltar(event, 'f_autor')">
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <div class="form-group">
+                                <label>AUTOR</label>
+                                <input type="text" id="f_autor" onkeydown="return saltar(event, 'f_editorial')">
+                            </div>
+                        </td>
+                        <td>
+                            <div class="form-group">
+                                <label>EDITORIAL</label>
+                                <input type="text" id="f_editorial" onkeydown="return saltar(event, 'f_lugar')">
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="2">
+                            <div class="form-group">
+                                <label>LUGAR / UBICACIÓN</label>
+                                <input type="text" id="f_lugar">
+                            </div>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-edit" style="background-color: #77a8a8;" onclick="guardar()">Guardar</button>
+                <button class="btn btn-clear" onclick="cerrarModal()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
